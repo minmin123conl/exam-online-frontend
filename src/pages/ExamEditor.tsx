@@ -69,7 +69,7 @@ export default function ExamEditor() {
 
       {tab === "info" && <InfoTab exam={exam} reload={load} onDelete={() => nav("/admin")} />}
       {tab === "questions" && <QuestionsTab exam={exam} reload={load} />}
-      {tab === "codes" && <CodesTab examId={id} />}
+      {tab === "codes" && <CodesTab examId={id} examTitle={exam.title} />}
       {tab === "results" && <ResultsTab examId={id} />}
     </div>
   );
@@ -604,12 +604,89 @@ function QuestionForm({
   );
 }
 
-function CodesTab({ examId }: { examId: number }) {
+function codeStatus(c: ExamCode): { label: string; cls: "success" | "warning" | "danger" } {
+  if (c.max_uses === 0) {
+    return {
+      label: c.uses_count > 0 ? `Đang dùng (${c.uses_count}/∞)` : "Sẵn sàng (∞)",
+      cls: c.uses_count > 0 ? "warning" : "success",
+    };
+  }
+  if (c.uses_count >= c.max_uses) return { label: `Hết lượt (${c.uses_count}/${c.max_uses})`, cls: "danger" };
+  if (c.uses_count > 0) return { label: `Còn lượt (${c.uses_count}/${c.max_uses})`, cls: "warning" };
+  return { label: `Sẵn sàng (0/${c.max_uses})`, cls: "success" };
+}
+
+function codeUsesLabel(c: ExamCode): string {
+  return c.max_uses === 0 ? `${c.uses_count}/∞` : `${c.uses_count}/${c.max_uses}`;
+}
+
+function csvEscape(v: string | number | null | undefined): string {
+  const s = v === null || v === undefined ? "" : String(v);
+  if (/[",\n\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+
+function downloadBlob(filename: string, blob: Blob) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function safeFilenamePart(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\w\-]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 40) || "ma-thi";
+}
+
+function exportCodesTxt(codes: ExamCode[], examTitle: string) {
+  const header = `Đề: ${examTitle}\nTổng: ${codes.length} mã\nXuất lúc: ${new Date().toLocaleString("vi-VN")}\n\n`;
+  const lines = codes.map((c) => {
+    const note = c.note ? `\t# ${c.note}` : "";
+    return `${c.code}\t(${codeUsesLabel(c)})${note}`;
+  });
+  const body = header + lines.join("\n") + "\n";
+  const blob = new Blob(["\ufeff" + body], { type: "text/plain;charset=utf-8" });
+  downloadBlob(`ma-thi-${safeFilenamePart(examTitle)}.txt`, blob);
+}
+
+function exportCodesCsv(codes: ExamCode[], examTitle: string) {
+  const rows: (string | number)[][] = [
+    ["STT", "Mã", "Ghi chú", "Đã dùng", "Tối đa", "Người dùng gần nhất", "Thời điểm dùng gần nhất", "Tạo lúc"],
+  ];
+  codes.forEach((c, i) => {
+    rows.push([
+      i + 1,
+      c.code,
+      c.note || "",
+      c.uses_count,
+      c.max_uses === 0 ? "Không giới hạn" : c.max_uses,
+      c.used_by || "",
+      c.used_at ? new Date(c.used_at).toLocaleString("vi-VN") : "",
+      new Date(c.created_at).toLocaleString("vi-VN"),
+    ]);
+  });
+  const csv = rows.map((r) => r.map(csvEscape).join(",")).join("\r\n");
+  const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
+  downloadBlob(`ma-thi-${safeFilenamePart(examTitle)}.csv`, blob);
+}
+
+function CodesTab({ examId, examTitle }: { examId: number; examTitle: string }) {
   const [codes, setCodes] = useState<ExamCode[]>([]);
   const [count, setCount] = useState(5);
   const [notePrefix, setNotePrefix] = useState("HS-");
+  const [bulkMaxUses, setBulkMaxUses] = useState(1);
   const [customCode, setCustomCode] = useState("");
   const [customNote, setCustomNote] = useState("");
+  const [customMaxUses, setCustomMaxUses] = useState(1);
+  const [editing, setEditing] = useState<{ id: number; note: string; maxUses: number } | null>(null);
 
   const load = useCallback(async () => {
     const r = await api.listCodes(examId);
@@ -621,18 +698,24 @@ function CodesTab({ examId }: { examId: number }) {
   }, [load]);
 
   async function generate() {
-    await api.generateCodes(examId, count, notePrefix);
+    await api.generateCodes(examId, count, notePrefix, bulkMaxUses);
     load();
   }
   async function addCustom() {
     if (!customCode.trim()) return;
-    await api.addCode(examId, customCode, customNote);
+    await api.addCode(examId, customCode, customNote, customMaxUses);
     setCustomCode("");
     setCustomNote("");
     load();
   }
+  async function saveEdit() {
+    if (!editing) return;
+    await api.updateCode(editing.id, { note: editing.note, max_uses: editing.maxUses });
+    setEditing(null);
+    load();
+  }
 
-  const used = codes.filter((c) => c.used_at).length;
+  const usedAtLeastOnce = codes.filter((c) => c.uses_count > 0).length;
 
   return (
     <div>
@@ -659,6 +742,21 @@ function CodesTab({ examId }: { examId: number }) {
               placeholder="VD: 12A1-"
             />
           </div>
+          <div className="field" style={{ maxWidth: 180 }}>
+            <label>Số lần sử dụng / mã</label>
+            <input
+              className="input"
+              type="number"
+              min={0}
+              max={10000}
+              value={bulkMaxUses}
+              onChange={(e) => setBulkMaxUses(Math.max(0, Number(e.target.value) || 0))}
+              title="0 = không giới hạn"
+            />
+            <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+              0 = không giới hạn lượt
+            </div>
+          </div>
           <div className="field" style={{ flex: "0 0 auto" }}>
             <button className="btn" onClick={generate} style={{ marginBottom: 0 }}>
               + Sinh {count} mã
@@ -683,6 +781,21 @@ function CodesTab({ examId }: { examId: number }) {
             <label>Ghi chú (tên học sinh, lớp…)</label>
             <input className="input" value={customNote} onChange={(e) => setCustomNote(e.target.value)} />
           </div>
+          <div className="field" style={{ maxWidth: 180 }}>
+            <label>Số lần sử dụng</label>
+            <input
+              className="input"
+              type="number"
+              min={0}
+              max={10000}
+              value={customMaxUses}
+              onChange={(e) => setCustomMaxUses(Math.max(0, Number(e.target.value) || 0))}
+              title="0 = không giới hạn"
+            />
+            <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+              0 = không giới hạn lượt
+            </div>
+          </div>
           <div className="field" style={{ flex: "0 0 auto" }}>
             <button className="btn secondary" onClick={addCustom} style={{ marginBottom: 0 }}>
               + Thêm
@@ -692,12 +805,39 @@ function CodesTab({ examId }: { examId: number }) {
       </div>
 
       <div className="card" style={{ padding: 0 }}>
-        <div style={{ padding: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div
+          style={{
+            padding: 16,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 8,
+          }}
+        >
           <div>
             <h3 style={{ margin: 0 }}>Danh sách mã</h3>
             <div className="muted">
-              Tổng {codes.length} mã • Đã dùng {used}/{codes.length}
+              Tổng {codes.length} mã • Đã có lượt dùng {usedAtLeastOnce}/{codes.length}
             </div>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              className="btn sm secondary"
+              disabled={codes.length === 0}
+              onClick={() => exportCodesTxt(codes, examTitle)}
+              title="Xuất danh sách mã ra file .txt (UTF-8)"
+            >
+              ⬇ Xuất .txt
+            </button>
+            <button
+              className="btn sm secondary"
+              disabled={codes.length === 0}
+              onClick={() => exportCodesCsv(codes, examTitle)}
+              title="Xuất danh sách mã ra file .csv mở được bằng Excel"
+            >
+              ⬇ Xuất Excel (.csv)
+            </button>
           </div>
         </div>
         {codes.length === 0 ? (
@@ -709,55 +849,109 @@ function CodesTab({ examId }: { examId: number }) {
                 <th>Mã</th>
                 <th>Ghi chú</th>
                 <th>Trạng thái</th>
-                <th>Người dùng</th>
-                <th>Thời điểm dùng</th>
+                <th>Lượt dùng</th>
+                <th>Người dùng gần nhất</th>
+                <th>Lần dùng gần nhất</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {codes.map((c) => (
-                <tr key={c.id}>
-                  <td>
-                    <span className="badge mono">{c.code}</span>
-                  </td>
-                  <td>{c.note || "—"}</td>
-                  <td>
-                    {c.used_at ? (
-                      <span className="badge danger">Đã dùng</span>
-                    ) : (
-                      <span className="badge success">Sẵn sàng</span>
-                    )}
-                  </td>
-                  <td>{c.used_by || "—"}</td>
-                  <td>{c.used_at ? new Date(c.used_at).toLocaleString("vi-VN") : "—"}</td>
-                  <td>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      {c.used_at && (
-                        <button
-                          className="btn sm secondary"
-                          onClick={async () => {
-                            if (!confirm("Reset mã này để cho phép dùng lại? (Lượt làm cũ vẫn giữ lại)")) return;
-                            await api.resetCode(c.id);
-                            load();
-                          }}
-                        >
-                          Reset
-                        </button>
+              {codes.map((c) => {
+                const st = codeStatus(c);
+                const isEditing = editing?.id === c.id;
+                return (
+                  <tr key={c.id}>
+                    <td>
+                      <span className="badge mono">{c.code}</span>
+                    </td>
+                    <td>
+                      {isEditing ? (
+                        <input
+                          className="input"
+                          value={editing!.note}
+                          onChange={(e) => setEditing({ ...editing!, note: e.target.value })}
+                          style={{ minWidth: 140 }}
+                        />
+                      ) : (
+                        c.note || "—"
                       )}
-                      <button
-                        className="btn sm danger"
-                        onClick={async () => {
-                          if (!confirm("Xoá mã này?")) return;
-                          await api.deleteCode(c.id);
-                          load();
-                        }}
-                      >
-                        Xoá
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td>
+                      <span className={`badge ${st.cls}`}>{st.label}</span>
+                    </td>
+                    <td>
+                      {isEditing ? (
+                        <input
+                          className="input"
+                          type="number"
+                          min={0}
+                          max={10000}
+                          value={editing!.maxUses}
+                          onChange={(e) =>
+                            setEditing({ ...editing!, maxUses: Math.max(0, Number(e.target.value) || 0) })
+                          }
+                          style={{ width: 80 }}
+                          title="0 = không giới hạn"
+                        />
+                      ) : (
+                        codeUsesLabel(c)
+                      )}
+                    </td>
+                    <td>{c.used_by || "—"}</td>
+                    <td>{c.used_at ? new Date(c.used_at).toLocaleString("vi-VN") : "—"}</td>
+                    <td>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        {isEditing ? (
+                          <>
+                            <button className="btn sm" onClick={saveEdit}>
+                              Lưu
+                            </button>
+                            <button className="btn sm secondary" onClick={() => setEditing(null)}>
+                              Huỷ
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              className="btn sm secondary"
+                              onClick={() => setEditing({ id: c.id, note: c.note || "", maxUses: c.max_uses })}
+                            >
+                              Sửa
+                            </button>
+                            {c.uses_count > 0 && (
+                              <button
+                                className="btn sm secondary"
+                                onClick={async () => {
+                                  if (
+                                    !confirm(
+                                      "Reset mã này về 0 lượt dùng? (Lượt làm bài đã ghi nhận vẫn được giữ.)",
+                                    )
+                                  )
+                                    return;
+                                  await api.resetCode(c.id);
+                                  load();
+                                }}
+                              >
+                                Reset
+                              </button>
+                            )}
+                            <button
+                              className="btn sm danger"
+                              onClick={async () => {
+                                if (!confirm("Xoá mã này?")) return;
+                                await api.deleteCode(c.id);
+                                load();
+                              }}
+                            >
+                              Xoá
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}

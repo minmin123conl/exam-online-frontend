@@ -198,17 +198,24 @@ export const api = {
   listCodes(examId: number) {
     return request<ExamCode[]>(`/api/admin/exams/${examId}/codes`, {}, true);
   },
-  generateCodes(examId: number, count: number, note_prefix = "") {
+  generateCodes(examId: number, count: number, note_prefix = "", max_uses = 1) {
     return request<ExamCode[]>(
       `/api/admin/exams/${examId}/codes/generate`,
-      { method: "POST", body: JSON.stringify({ count, note_prefix }) },
+      { method: "POST", body: JSON.stringify({ count, note_prefix, max_uses }) },
       true,
     );
   },
-  addCode(examId: number, code: string, note = "") {
+  addCode(examId: number, code: string, note = "", max_uses = 1) {
     return request<ExamCode>(
       `/api/admin/exams/${examId}/codes/custom`,
-      { method: "POST", body: JSON.stringify({ code, note }) },
+      { method: "POST", body: JSON.stringify({ code, note, max_uses }) },
+      true,
+    );
+  },
+  updateCode(codeId: number, body: { note?: string; max_uses?: number }) {
+    return request<ExamCode>(
+      `/api/admin/codes/${codeId}`,
+      { method: "PATCH", body: JSON.stringify(body) },
       true,
     );
   },
@@ -307,6 +314,8 @@ export interface ExamCode {
   note: string;
   used_by: string | null;
   used_at: string | null;
+  max_uses: number;
+  uses_count: number;
   created_at: string;
 }
 

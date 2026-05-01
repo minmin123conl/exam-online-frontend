@@ -6,14 +6,10 @@
     </linearGradient>
   </defs>
   <rect width="64" height="64" rx="14" fill="url(#bg)"/>
-  <!-- graduation cap base (band) -->
   <path d="M16 32 L16 41 C16 45 23 47 32 47 C41 47 48 45 48 41 L48 32 L32 39 Z" fill="#fbbf24"/>
-  <!-- mortarboard top -->
   <path d="M32 14 L58 26 L32 38 L6 26 Z" fill="#ffffff"/>
   <path d="M32 14 L58 26 L32 38 L6 26 Z" fill="none" stroke="#1e3a8a" stroke-width="1.2"/>
-  <!-- tassel -->
   <line x1="55" y1="26" x2="55" y2="44" stroke="#fbbf24" stroke-width="2.5" stroke-linecap="round"/>
   <circle cx="55" cy="46" r="3.2" fill="#fbbf24"/>
-  <!-- check mark on top of cap -->
   <path d="M24 25 L30 30 L40 21" stroke="#22c55e" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
