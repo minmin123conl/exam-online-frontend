@@ -143,9 +143,11 @@ export default function AdminDashboard() {
         <div className="card">
           <h3>Tải đề từ file Word (.docx)</h3>
           <p className="muted" style={{ fontSize: 13 }}>
-            Hệ thống tự nhận diện <strong>câu trắc nghiệm</strong> (đáp án đúng = chữ <span style={{ color: "#dc2626" }}>đỏ</span>),{" "}
+            Hệ thống tự nhận diện <strong>câu trắc nghiệm</strong> (đánh dấu một đáp án đúng bằng chữ{" "}
+            <span style={{ color: "#dc2626" }}>đỏ</span>, highlight hoặc gạch chân ở ký hiệu A/B/C/D hoặc nội dung phương án),{" "}
             <strong>câu Đúng/Sai</strong> (đáp án từ bảng), <strong>hình ảnh</strong> trong câu hỏi và{" "}
-            <strong>công thức toán</strong>. Sau khi tải lên, bạn có thể chỉnh sửa từng câu trong trang sửa đề nếu hệ thống nhận diện sai.
+            <strong>công thức toán</strong>. Nếu không có hoặc có nhiều phương án được đánh dấu, hệ thống sẽ cảnh báo để bạn kiểm tra lại.{" "}
+            Sau khi tải lên, bạn có thể chỉnh sửa từng câu trong trang sửa đề nếu hệ thống nhận diện sai.
           </p>
           <form onSubmit={doUpload}>
             <div className="field">
