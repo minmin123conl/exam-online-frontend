@@ -6,27 +6,6 @@ export default function Home() {
   const [exams, setExams] = useState<ActiveExam[] | null>(null);
 
   useEffect(() => {
-    const scriptId = "home-adsense";
-    // React StrictMode can run this effect twice; load AdSense once per document.
-    if (!document.getElementById(scriptId)) {
-      const script = document.createElement("script");
-      script.id = scriptId;
-      script.async = true;
-      script.src = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8979769704639053";
-      script.crossOrigin = "anonymous";
-      document.head.appendChild(script);
-    }
-
-    return () => {
-      // AdSense keeps global state even if its script tag is removed. Start a
-      // fresh document when leaving Home, including browser Back/Forward.
-      if (window.location.pathname !== "/") {
-        window.location.reload();
-      }
-    };
-  }, []);
-
-  useEffect(() => {
     api.listActiveExams().then(setExams).catch(() => setExams([]));
   }, []);
 
@@ -39,10 +18,10 @@ export default function Home() {
           và có bảng xếp hạng cập nhật theo thời gian thực.
         </p>
         <div style={{ marginTop: 24, display: "flex", justifyContent: "center", gap: 12 }}>
-          <Link to="/join" reloadDocument className="btn">
+          <Link to="/join" className="btn">
             Vào làm bài
           </Link>
-          <Link to="/admin/login" reloadDocument className="btn secondary">
+          <Link to="/admin/login" className="btn secondary">
             Đăng nhập quản trị
           </Link>
         </div>
@@ -64,7 +43,7 @@ export default function Home() {
                 </div>
                 <div style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
                   <span className="badge">⏱ {e.duration_minutes} phút</span>
-                  <Link to={`/leaderboard/${e.id}`} reloadDocument className="btn sm secondary">
+                  <Link to={`/leaderboard/${e.id}`} className="btn sm secondary">
                     Bảng xếp hạng
                   </Link>
                 </div>
