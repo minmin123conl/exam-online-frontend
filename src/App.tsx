@@ -3,6 +3,7 @@ import { getToken } from "./api";
 
 export default function App() {
   const location = useLocation();
+  const isHomePage = location.pathname === "/";
   const isAdminArea = location.pathname.startsWith("/admin");
   const loggedIn = Boolean(getToken());
 
@@ -14,11 +15,11 @@ export default function App() {
         </Link>
         <nav>
           <Link to="/">Trang chủ</Link>
-          <Link to="/join">Vào thi</Link>
+          <Link to="/join" reloadDocument={isHomePage}>Vào thi</Link>
           {isAdminArea && loggedIn ? (
-            <Link to="/admin">Quản trị</Link>
+            <Link to="/admin" reloadDocument={isHomePage}>Quản trị</Link>
           ) : (
-            <Link to="/admin/login">Admin</Link>
+            <Link to="/admin/login" reloadDocument={isHomePage}>Admin</Link>
           )}
         </nav>
       </header>

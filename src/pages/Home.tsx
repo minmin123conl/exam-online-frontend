@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, type ActiveExam } from "../api";
+import HomeAds from "../components/HomeAds";
 
 export default function Home() {
   const [exams, setExams] = useState<ActiveExam[] | null>(null);
@@ -18,10 +19,10 @@ export default function Home() {
           và có bảng xếp hạng cập nhật theo thời gian thực.
         </p>
         <div style={{ marginTop: 24, display: "flex", justifyContent: "center", gap: 12 }}>
-          <Link to="/join" className="btn">
+          <Link to="/join" reloadDocument className="btn">
             Vào làm bài
           </Link>
-          <Link to="/admin/login" className="btn secondary">
+          <Link to="/admin/login" reloadDocument className="btn secondary">
             Đăng nhập quản trị
           </Link>
         </div>
@@ -43,7 +44,7 @@ export default function Home() {
                 </div>
                 <div style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
                   <span className="badge">⏱ {e.duration_minutes} phút</span>
-                  <Link to={`/leaderboard/${e.id}`} className="btn sm secondary">
+                  <Link to={`/leaderboard/${e.id}`} reloadDocument className="btn sm secondary">
                     Bảng xếp hạng
                   </Link>
                 </div>
@@ -52,6 +53,7 @@ export default function Home() {
           </div>
         )}
       </div>
+      <HomeAds />
     </div>
   );
 }
